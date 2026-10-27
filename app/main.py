@@ -7,7 +7,12 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-DB_PATH = Path(os.environ.get("LAB_DB_PATH", "/tmp/codealpha_review.sqlite3"))
+DB_PATH = Path(
+    os.environ.get(
+        "LAB_DB_PATH",
+        str(Path.home() / ".local" / "share" / "codealpha-review" / "review.sqlite3"),
+    )
+)
 API_KEY = os.environ.get("LAB_API_KEY", "")
 app = FastAPI(title="CodeAlpha Secure Coding Review", debug=False)
 

@@ -3,22 +3,13 @@
 [main]	INFO	cli include tests: None
 [main]	INFO	cli exclude tests: None
 [main]	INFO	running on Python 3.14.8
-Run started:2026-10-27 04:02:55.674887+00:00
+Run started:2026-10-27 04:39:23.985770+00:00
 
 Test results:
->> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
-   Severity: Medium   Confidence: Medium
-   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html
-   Location: app/main.py:10:45
-9	
-10	DB_PATH = Path(os.environ.get("LAB_DB_PATH", "/tmp/codealpha_review.sqlite3"))
-11	API_KEY = os.environ.get("LAB_API_KEY", "")
-
---------------------------------------------------
+	No issues identified.
 
 Code scanned:
-	Total lines of code: 78
+	Total lines of code: 83
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
 
@@ -26,11 +17,11 @@ Run metrics:
 	Total issues (by severity):
 		Undefined: 0
 		Low: 0
-		Medium: 1
+		Medium: 0
 		High: 0
 	Total issues (by confidence):
 		Undefined: 0
 		Low: 0
-		Medium: 1
+		Medium: 0
 		High: 0
 Files skipped (0):
