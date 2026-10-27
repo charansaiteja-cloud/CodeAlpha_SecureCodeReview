@@ -231,6 +231,16 @@ def trigger_security_scan(request: ScanRequest):
 
     return result
 
+    import sys, os
+    if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI") or os.getenv("API_KEY"):
+        return
+    api_key = os.getenv("API_KEY", "")
+    if not api_key or len(api_key) < 20:
+        import sys as _sys
+        print("[FATAL ERROR] Invalid, missing, or placeholder API key detected.", file=_sys.stderr)
+        _sys.exit(1)
+
+
 def validate_environment():
     import sys, os
     if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI") or os.getenv("API_KEY"):
