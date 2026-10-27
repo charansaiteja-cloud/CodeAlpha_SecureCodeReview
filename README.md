@@ -379,6 +379,14 @@ Additional limitations:
 - Improve remediation guidance for each custom rule.
 - Run the consolidated workflow remotely and record the result before claiming CI success.
 
+## 🎬 Project Demo
+
+Watch the 56-second Secure Code Review demonstration.
+
+- **Demo video:** [secure-code-review-demo.mp4](demo-video/secure-code-review-demo.mp4)
+- **Demo documentation:** [Demo README](demo-video/README.md)
+- **Security evidence:** [Demo evidence](demo-video/evidence/)
+
 ## Contributing
 
 1. Fork the repository and create a feature branch.
