@@ -37,7 +37,7 @@ jobs:
       - name: Run Semgrep Security Scan
         continue-on-error: true
         run: |
-          semgrep scan --config auto --metrics=on --exclude benchmarks/
+          semgrep scan --config .semgrep/rules.yml --exclude benchmarks/
 
       - name: Run Supply-Chain Dependency Audit
         run: |
