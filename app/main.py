@@ -8,11 +8,15 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from app.scanner.orchestrator import ScanOrchestrator
+from app.middleware import SecurityHeadersMiddleware
 
 logger = logging.getLogger(__name__)
 
 # FastAPI app instance defined at module top-level
 app = FastAPI(title="CodeAlpha SecureCodeReview", version="2.0.0")
+
+# Register security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 DB_PATH = Path(
     os.environ.get(
@@ -112,13 +116,9 @@ class ScanRequest(BaseModel):
 def trigger_security_scan(request: ScanRequest):
     workspace_dir = Path(".").resolve()
     try:
-        # Resolve target path securely and verify containment using is_relative_to
         target_dir = (workspace_dir / request.target_path).resolve()
-        
-        # Hardened check against path traversal and sibling directory prefix bypasses
         if not target_dir.is_relative_to(workspace_dir):
             raise HTTPException(status_code=400, detail="Path traversal detected.")
-            
         if not target_dir.is_dir():
             raise HTTPException(status_code=400, detail="Target directory does not exist.")
     except Exception as e:
