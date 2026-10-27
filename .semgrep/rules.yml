@@ -1,11 +1,12 @@
 rules:
-  - id: lab-shell-true
-    languages: [python]
+  - id: python-unsafe-shell-true
+    pattern: subprocess.run(..., shell=True, ...)
+    message: "Avoid shell=True in subprocess calls to prevent command injection."
     severity: ERROR
-    message: Avoid shell=True with untrusted input.
-    pattern: subprocess.$FUNC(..., shell=True, ...)
-  - id: lab-pickle-loads
     languages: [python]
-    severity: ERROR
-    message: Avoid pickle for untrusted data.
+
+  - id: python-unsafe-pickle-loads
     pattern: pickle.loads(...)
+    message: "Avoid deserializing untrusted data with pickle."
+    severity: ERROR
+    languages: [python]
