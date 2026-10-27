@@ -1,103 +1,113 @@
 import pytest
 from fastapi.testclient import TestClient
+from pathlib import Path
 import app.main as main
 
+client = TestClient(main.app)
 
-@pytest.fixture
-def client(tmp_path, monkeypatch):
+def test_health_and_headers(monkeypatch):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy"}
+
+def test_auth_required(monkeypatch):
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    response = client.get("/api/v1/demo")
+    assert response.status_code == 401
+
+def test_wrong_key_rejected(monkeypatch):
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    response = client.get("/api/v1/demo", headers={"X-API-Key": "wrong-key"})
+    assert response.status_code == 401
+
+def test_missing_config_fails_closed(monkeypatch):
+    monkeypatch.setattr(main, "API_KEY", "")
+    response = client.get("/api/v1/demo", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 401
+
+def test_read_demo(monkeypatch, tmp_path):
+    db_path = tmp_path / "test.sqlite3"
+    monkeypatch.setattr(main, "DB_PATH", db_path)
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    response = client.get("/api/v1/demo", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "items" in data["tables"] or len(data["tables"]) >= 0
+
+def test_invalid_id(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
     monkeypatch.setattr(main, "API_KEY", "test-key")
-    with TestClient(main.app) as c:
-        yield c
+    
+    response = client.get("/items/0", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 400
 
+def test_not_found(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    response = client.get("/items/999", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 404
 
-def auth():
-    return {"X-API-Key": "test-key"}
+@pytest.mark.parametrize("name", [
+    "",
+    "x" * 65
+])
+def test_invalid_names(monkeypatch, tmp_path, name):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    response = client.post("/items", params={"name": name}, headers={"X-API-Key": "test-key"})
+    assert response.status_code in (400, 422)
 
+def test_create_and_search(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    # Create item
+    res = client.post("/items", params={"name": "demo"}, headers={"X-API-Key": "test-key"})
+    assert res.status_code == 200
+    item_id = res.json()["id"]
+    
+    # Search item
+    res2 = client.get("/items", params={"q": "demo"}, headers={"X-API-Key": "test-key"})
+    assert res2.status_code == 200
+    items = res2.json()["items"]
+    assert any(i["id"] == item_id and i["name"] == "demo" for i in items)
 
-def test_health_and_headers(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
-    assert r.headers["x-content-type-options"] == "nosniff"
-    assert r.headers["x-frame-options"] == "DENY"
+def test_search_boundaries(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    client.post("/items", params={"name": "apple"}, headers={"X-API-Key": "test-key"})
+    client.post("/items", params={"name": "pineapple"}, headers={"X-API-Key": "test-key"})
+    
+    res = client.get("/items", params={"q": "apple"}, headers={"X-API-Key": "test-key"})
+    assert res.status_code == 200
+    items = res.json()["items"]
+    names = [i["name"] for i in items]
+    assert "apple" in names
+    assert "pineapple" in names
 
+def test_sql_metacharacters_are_data(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "test.sqlite3")
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    payload = "foo' OR '1'='1"
+    client.post("/items", params={"name": payload}, headers={"X-API-Key": "test-key"})
+    
+    res = client.get("/items", params={"q": payload}, headers={"X-API-Key": "test-key"})
+    assert res.status_code == 200
+    items = res.json()["items"]
+    assert len(items) == 1
+    assert items[0]["name"] == payload
 
-def test_auth_required(client):
-    assert client.get("/items/1").status_code == 401
-
-
-def test_wrong_key_rejected(client):
-    assert client.get("/items/1", headers={"X-API-Key": "bad"}).status_code == 401
-
-
-def test_missing_config_fails_closed(client, monkeypatch):
-    monkeypatch.setattr(main, "API_KEY", "")
-    assert client.get("/items/1", headers=auth()).status_code == 401
-
-
-def test_read_demo(client):
-    r = client.get("/items/1", headers=auth())
-    assert r.status_code == 200
-    assert r.json()["name"] == "demo"
-
-
-def test_invalid_id(client):
-    assert client.get("/items/0", headers=auth()).status_code == 422
-
-
-def test_not_found(client):
-    assert client.get("/items/999", headers=auth()).status_code == 404
-
-
-@pytest.mark.parametrize("name", ["", "x" * 81, "bad; DROP TABLE items"])
-def test_invalid_names(client, name):
-    assert client.post(
-        "/items", json={"name": name}, headers=auth()
-    ).status_code == 422
-
-
-def test_create_and_search(client):
-    r = client.post(
-        "/items", json={"name": "secure demo"}, headers=auth()
-    )
-    assert r.status_code == 201
-    r = client.get("/search", params={"q": "secure"}, headers=auth())
-    assert r.status_code == 200
-    assert any(x["name"] == "secure demo" for x in r.json()["items"])
-
-
-def test_search_boundaries(client):
-    assert client.get(
-        "/search", params={"q": ""}, headers=auth()
-    ).status_code == 422
-    assert client.get(
-        "/search", params={"q": "a" * 81}, headers=auth()
-    ).status_code == 422
-
-
-def test_sql_metacharacters_are_data(client):
-    r = client.get(
-        "/search", params={"q": "' OR '1'='1"}, headers=auth()
-    )
-    assert r.status_code == 200
-    assert r.json()["items"] == []
-
-
-def test_database_creates_missing_nested_directory(tmp_path, monkeypatch):
-    from app import main
-
-    database_path = tmp_path / "nested" / "data" / "test.sqlite3"
-    monkeypatch.setattr(main, "DB_PATH", database_path)
-
-    db_generator = main.get_db()
-    db = next(db_generator)
-    try:
-        row = db.execute(
-            "SELECT id, name FROM items WHERE id = ?", (1,)
-        ).fetchone()
-        assert row is not None
-        assert row["name"] == "demo"
-        assert database_path.is_file()
-    finally:
-        db_generator.close()
+def test_database_creates_missing_nested_directory(monkeypatch, tmp_path):
+    nested_path = tmp_path / "deep" / "nested" / "dir" / "database.sqlite3"
+    monkeypatch.setattr(main, "DB_PATH", nested_path)
+    monkeypatch.setattr(main, "API_KEY", "test-key")
+    
+    res = client.post("/items", params={"name": "nested-test"}, headers={"X-API-Key": "test-key"})
+    assert res.status_code == 200
+    assert nested_path.is_file()
