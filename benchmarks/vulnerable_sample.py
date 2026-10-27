@@ -1,14 +1,13 @@
 """
 Intentionally vulnerable sample file for SAST benchmark testing.
-Contains patterns guaranteed to trigger Bandit (e.g., assert, eval).
+Contains patterns guaranteed to trigger Bandit (exec, os.system).
 """
-import sqlite3
 import os
 
-def unsafe_evaluation(user_input: str):
-    # Triggers Bandit B307 (eval used)
-    return eval(user_input)
+def unsafe_exec(user_input: str):
+    # Triggers Bandit B102: exec_used
+    exec(user_input)
 
-def check_auth(is_admin: bool):
-    # Triggers Bandit B101 (use of assert)
-    assert is_admin, "User must be admin"
+def unsafe_system(cmd: str):
+    # Triggers Bandit B605/B602: start_process_with_a_shell / os_system
+    os.system(cmd)
