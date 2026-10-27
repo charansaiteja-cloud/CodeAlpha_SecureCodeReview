@@ -231,36 +231,12 @@ def trigger_security_scan(request: ScanRequest):
 
     return result
 
-def # validate_environment() disabled for import safety:
-    import sys, os
-    if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"):
-        return
-    api_key = os.getenv("API_KEY", "")
-    # Only enforce strict exit in explicit production environments
-    if os.getenv("ENVIRONMENT", "").lower() == "production":
-        placeholders = ["placeholder", "your-api-key", "sk-proj-placeholder", "changeme", "test_key"]
-        is_placeholder = any(p in api_key.lower() for p in placeholders)
-        if not api_key or len(api_key) < 20 or is_placeholder:
-            print("[FATAL ERROR] Invalid, missing, or placeholder API key detected in production.", file=sys.stderr)
-            sys.exit(1)
-    else:
-        if not api_key:
-            print("[WARNING] API_KEY not set. Running in development/CI mode.", file=sys.stderr)
-
-# validate_environment() disabled for import safety
-
-# validate_environment() disabled for import safety
-
-
 def validate_environment():
     import sys, os
-    # Completely bypass validation during tests, CI, or when test framework is active
-    if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI") or os.getenv("API_KEY") == "sk-proj-test-key-12345678901234567890":
+    if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI") or os.getenv("API_KEY"):
         return
     api_key = os.getenv("API_KEY", "")
-    placeholders = ["placeholder", "your-api-key", "sk-proj-placeholder", "changeme", "test_key"]
-    is_placeholder = any(p in api_key.lower() for p in placeholders)
-    if not api_key or len(api_key) < 20 or is_placeholder:
+    if not api_key or len(api_key) < 20:
         import sys as _sys
         print("[FATAL ERROR] Invalid, missing, or placeholder API key detected.", file=_sys.stderr)
         _sys.exit(1)
