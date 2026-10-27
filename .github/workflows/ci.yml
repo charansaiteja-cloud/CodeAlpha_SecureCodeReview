@@ -1,4 +1,4 @@
-name: 10/10 CI Security & Supply-Chain Gate
+name: Secure Code Review CI
 
 on:
   push:
@@ -33,6 +33,10 @@ jobs:
       - name: Run Bandit SAST Scan
         run: |
           bandit -r app/ -lll
+
+      - name: Run Semgrep Security Scan
+        run: |
+          semgrep scan --config auto --exclude benchmarks/ || true
 
       - name: Run Supply-Chain Dependency Audit
         run: |
