@@ -82,3 +82,22 @@ def test_sql_metacharacters_are_data(client):
     )
     assert r.status_code == 200
     assert r.json()["items"] == []
+
+
+def test_database_creates_missing_nested_directory(tmp_path, monkeypatch):
+    from app import main
+
+    database_path = tmp_path / "nested" / "data" / "test.sqlite3"
+    monkeypatch.setattr(main, "DB_PATH", database_path)
+
+    db_generator = main.get_db()
+    db = next(db_generator)
+    try:
+        row = db.execute(
+            "SELECT id, name FROM items WHERE id = ?", (1,)
+        ).fetchone()
+        assert row is not None
+        assert row["name"] == "demo"
+        assert database_path.is_file()
+    finally:
+        db_generator.close()

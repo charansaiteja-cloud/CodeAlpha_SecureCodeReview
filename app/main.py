@@ -1,11 +1,14 @@
 """Corrected application for the CodeAlpha secure-coding lab."""
 import hmac
+import logging
 import os
 import sqlite3
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(
     os.environ.get(
@@ -22,9 +25,11 @@ class Item(BaseModel):
 
 
 def get_db():
-    db = sqlite3.connect(DB_PATH)
-    db.row_factory = sqlite3.Row
+    db = None
     try:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        db = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
         db.execute(
             "CREATE TABLE IF NOT EXISTS items "
             "(id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
@@ -34,8 +39,15 @@ def get_db():
         )
         db.commit()
         yield db
+    except sqlite3.Error:
+        logger.exception("Database operation failed")
+        raise
+    except OSError:
+        logger.exception("Database directory or file access failed")
+        raise
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def require_key(x_api_key: str | None = Header(default=None)):

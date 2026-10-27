@@ -6,3 +6,13 @@ __pycache__/
 .env.*
 *.log
 .semgrep-venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases and generated scan reports
+*.sqlite3
+*.db
+reports/
