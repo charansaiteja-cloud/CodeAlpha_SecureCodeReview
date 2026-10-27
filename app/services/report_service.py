@@ -1,7 +1,22 @@
 import json
-from pathlib import Path
-from typing import Dict, Any, List
-from app.models.findings import Finding
+from typing import Any, Dict
+
+_SECURITY_SEVERITY = {
+    "CRITICAL": "9.5",
+    "HIGH": "8.0",
+    "MEDIUM": "5.5",
+    "LOW": "2.0",
+    "INFORMATIONAL": "0.0",
+}
+
+
+def _line_number(value: Any, default: int = 1) -> int:
+    try:
+        line = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return line if line > 0 else default
+
 
 class ReportService:
     @staticmethod
@@ -20,6 +35,9 @@ class ReportService:
 
         for f in findings:
             rule_id = f.get("rule_id", "UNKNOWN")
+            severity = str(f.get("severity", "MEDIUM")).upper()
+            start_line = _line_number(f.get("start_line"))
+            end_line = max(start_line, _line_number(f.get("end_line"), start_line))
             if rule_id not in rules_dict:
                 rules_dict[rule_id] = {
                     "id": rule_id,
@@ -28,8 +46,10 @@ class ReportService:
                     "fullDescription": {"text": f.get("description", "")},
                     "help": {"text": f.get("remediation", "")},
                     "properties": {
-                        "security-severity": "8.0" if f.get("severity") in ["HIGH", "CRITICAL"] else "4.0"
-                    }
+                        "security-severity": _SECURITY_SEVERITY.get(
+                            severity, _SECURITY_SEVERITY["MEDIUM"]
+                        )
+                    },
                 }
 
             results.append({
@@ -40,8 +60,8 @@ class ReportService:
                         "physicalLocation": {
                             "artifactLocation": {"uri": f.get("file_path", "")},
                             "region": {
-                                "startLine": f.get("start_line", 1),
-                                "endLine": f.get("end_line", f.get("start_line", 1))
+                                "startLine": start_line,
+                                "endLine": end_line,
                             }
                         }
                     }
@@ -56,7 +76,7 @@ class ReportService:
                     "tool": {
                         "driver": {
                             "name": "CodeAlpha SecureCodeReview",
-                            "version": "2.0.0",
+                            "version": "2.1.0",
                             "rules": list(rules_dict.values())
                         }
                     },

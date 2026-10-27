@@ -2,6 +2,10 @@
 import pickle
 import sqlite3
 import subprocess
+import tempfile
+
+import requests
+import yaml
 
 
 def unsafe_lookup(db: sqlite3.Connection, name: str):
@@ -22,6 +26,26 @@ def unsafe_preview(filename: str):
 def unsafe_load(data: bytes):
     # Unsafe if data is attacker-controlled.
     return pickle.loads(data)
+
+
+def unsafe_eval(expression: str):
+    # Dynamic code execution: the expression is treated as Python code.
+    return eval(expression)
+
+
+def unsafe_yaml(data: bytes):
+    # yaml.Loader can construct arbitrary Python objects.
+    return yaml.load(data, Loader=yaml.Loader)
+
+
+def unsafe_request(url: str):
+    # Certificate verification is disabled.
+    return requests.get(url, verify=False, timeout=2)
+
+
+def unsafe_tempfile():
+    # Race condition between filename generation and file creation.
+    return tempfile.mktemp()
 
 
 # Fictional placeholder, not a real credential.

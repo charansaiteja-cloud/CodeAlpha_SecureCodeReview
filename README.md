@@ -1,489 +1,401 @@
-🛡️ CodeAlpha Secure Code Review
+# 🛡️ CodeAlpha Secure Code Review
 
-A Python-based secure coding project demonstrating vulnerability identification, remediation, automated testing, and static security analysis.
+A Python secure-coding lab that compares intentionally vulnerable examples with a corrected FastAPI application and validates the result with tests, Bandit, Semgrep, and dependency auditing.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white) ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white) ![Security](https://img.shields.io/badge/Focus-Application%20Security-red) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white) ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white) ![Security](https://img.shields.io/badge/Focus-Application%20Security-red) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 Author: Bejjam Charan Sai Teja
 Project: CodeAlpha Cybersecurity Internship — Secure Code Review
-Repository: CodeAlpha_SecureCodeReview
+Repository: [CodeAlpha_SecureCodeReview](https://github.com/charansaiteja-cloud/CodeAlpha_SecureCodeReview)
 
-📌 Overview
+## Overview
 
-CodeAlpha Secure Code Review is an educational cybersecurity project focused on identifying insecure coding practices, implementing safer alternatives, and validating security improvements through automated tests and static analysis.
+The repository separates three kinds of code:
 
-The project separates intentionally vulnerable code examples from a corrected FastAPI application. It demonstrates how security weaknesses can be investigated, remediated, and tested in a controlled local environment.
+- `app/` — the corrected application and scanner integration. This is the blocking production target.
+- `vulnerable_samples/` — intentionally insecure examples used for education and detection tests. Never deploy or execute these functions with untrusted input.
+- `benchmarks/` — a vulnerable/safe pair used to verify that both scanners detect real issues and do not flag the safe implementation.
 
-The application uses SQLite for data storage and requires API-key authentication for protected endpoints. It incorporates input validation, parameterized SQL queries, constant-time API-key comparison, and defensive HTTP security headers.
+The application stores items in SQLite, requires an API key for protected routes, validates input, uses parameterized SQL, and returns defensive HTTP security headers. It can also run Bandit and Semgrep against a directory inside a configured scan root.
 
-Security testing is supported by Bandit, Semgrep, and pytest.
+> **Scope:** this is an educational lab, not a production service. Do not expose it to the internet or point `LAB_SCAN_ROOT` at sensitive data.
 
-🎯 Objectives
-Understand common application security weaknesses.
-Compare vulnerable code with corrected implementations.
-Demonstrate protection against SQL injection.
-Implement API-key authentication and input validation.
-Apply defensive HTTP security headers.
-Verify expected application behavior with automated tests.
-Use static analysis to identify potential security issues.
-Document security findings, remediation steps, and residual risks.
-✨ Key Features
-Feature	Description
-🔐 API-key authentication	Protects application endpoints using the X-API-Key header.
-🧪 Input validation	Validates item names and request parameters.
-🛡️ SQL injection prevention	Uses parameterized SQLite queries instead of string-built SQL statements.
-🔎 Search functionality	Searches stored items using a parameterized query.
-🧱 Security headers	Adds defensive HTTP response headers.
-🧰 Static analysis	Supports Bandit and Semgrep security scans.
-✅ Automated testing	Tests authentication, validation, database operations, and error handling.
-📚 Vulnerability education	Keeps intentionally insecure examples separate from corrected application code.
-📝 Security documentation	Organizes review findings and remediation information in the reports directory.
-🏗️ Project Architecture
+## Objectives
 
-The project consists of an application, vulnerable examples, tests, static-analysis rules, and security reports.
+- Demonstrate common application security weaknesses and their remediations.
+- Show the difference between intentionally vulnerable code and corrected code.
+- Verify the application with regression tests, not only with source review.
+- Make security-scanner failures and findings visible in local checks and CI.
+- Document residual risk instead of treating a clean scan as proof of security.
 
-text
+## Key Features
+
+| Feature | Description |
+| --- | --- |
+| API-key authentication | Protected routes require `X-API-Key`; the application fails closed when `LAB_API_KEY` is unset. |
+| Constant-time key comparison | Uses `hmac.compare_digest` over UTF-8 bytes. |
+| Parameterized SQL | Item creation and lookup use bound parameters. |
+| Literal search matching | SQL `LIKE` wildcards in the search term are escaped and treated as text. |
+| Input validation | Item names are 1–64 characters, non-blank, and free of control characters. |
+| Security headers | Strict API CSP, HSTS, frame denial, `no-store`, permissions policy, COOP/CORP, and related headers. |
+| Optional API docs | Swagger/OpenAPI is disabled by default and can be enabled explicitly for local use. |
+| Scanner API | Runs Bandit and the maintained local Semgrep rules against a contained directory. |
+| Scanner health reporting | Distinguishes success, partial completion, and scanner failure instead of returning an empty result as success. |
+| CI security gate | Tests on Python 3.11/3.12 plus Bandit, local Semgrep, `p/python` Semgrep, `pip check`, and `pip-audit`. |
+| Container hardening | Non-root user, read-only root filesystem in Compose, dropped capabilities, and required API key. |
+
+## Repository Layout
+
+```text
 CodeAlpha_SecureCodeReview/
-│
 ├── app/
-│   └── main.py                 # Corrected FastAPI application
-│
-├── vulnerable_samples/        # Intentionally insecure examples
-│
-├── tests/
-│   └── test_app.py             # Automated regression tests
-│
-├── .semgrep/
-│   └── rules.yml               # Custom Semgrep rules
-│
-├── reports/                   # Security findings and remediation
-│
-├── scripts/                   # Supporting scripts
-│
-├── requirements.txt            # Application and testing dependencies
-├── .gitignore                  # Excluded files and environments
-├── README.md                   # Project documentation
-└── LICENSE                     # MIT License
+│   ├── main.py                    # FastAPI routes, authentication, validation, scan endpoint
+│   ├── middleware.py              # HTTP security headers
+│   ├── models/                    # Normalized finding model
+│   ├── scanner/                   # Bandit/Semgrep orchestration, rules, and shared helpers
+│   └── services/                  # JSON and SARIF report generation utilities
+├── benchmarks/
+│   ├── vulnerable_sample.py       # Deliberately vulnerable scanner target
+│   └── safe_sample.py             # Secure counterpart used for false-positive checks
+├── vulnerable_samples/            # Intentionally insecure educational examples
+├── tests/                         # Application, scanner, rule, benchmark, and report tests
+├── .semgrep/rules.yml             # Maintained local Semgrep rules
+├── .github/workflows/ci.yml       # Consolidated test and security workflow
+├── docs/                          # Architecture and security policy
+├── scripts/verify.sh              # Local verification gate and evidence generation
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt               # Runtime dependencies
+├── requirements-dev.txt           # Runtime plus test and audit dependencies
+└── README.md
+```
 
+## Quick Start
 
-Directory contents may evolve as the project develops.
+### Prerequisites
 
-🔄 Security Review Workflow
+- Python 3.11 or newer (CI tests 3.11 and 3.12; the container uses 3.11).
+- Git.
+- A shell on Linux/macOS, or PowerShell/Command Prompt on Windows.
+- Network access for the first dependency installation.
 
-The workflow moves from identifying weaknesses to validating their remediation.
+### Linux / macOS
 
-text
-1. Review Source Code
-         ↓
-2. Identify Potential Vulnerabilities
-         ↓
-3. Reproduce and Understand the Risk
-         ↓
-4. Implement Secure Coding Practices
-         ↓
-5. Run Automated Regression Tests
-         ↓
-6. Execute Bandit and Semgrep
-         ↓
-7. Review Findings and False Positives
-         ↓
-8. Document Remediation and Residual Risks
-
-Step 1 — Review the source code
-
-Inspect the application and the intentionally vulnerable examples to understand the security problems being demonstrated.
-
-Step 2 — Identify weaknesses
-
-Look for unsafe database queries, missing authentication, insufficient validation, and other insecure implementation patterns.
-
-Step 3 — Remediate the weaknesses
-
-Apply appropriate controls, including parameterized SQL queries, API-key authentication, input constraints, and secure response headers.
-
-Step 4 — Run regression tests
-
-Use pytest to check that security controls work as expected and that normal application functionality remains intact.
-
-Step 5 — Run static analysis
-
-Use Bandit and Semgrep to identify suspicious coding patterns. Investigate each finding rather than automatically treating every alert as a confirmed vulnerability.
-
-Step 6 — Document the results
-
-Record the issue, potential impact, remediation, test evidence, and any remaining limitations.
-
-💻 Installation
-Prerequisites
-
-Install the following software before starting:
-
-Python 3.10 or newer, with a compatible version supported by the dependencies.
-Git.
-A terminal: PowerShell or Command Prompt on Windows, or a shell on Linux.
-Internet access to download the dependencies.
-
-Python virtual environments are recommended to isolate project dependencies.
-
-🪟 Windows Installation
-
-These commands use PowerShell.
-
-1. Clone the repository
-
-powershell
+```bash
 git clone https://github.com/charansaiteja-cloud/CodeAlpha_SecureCodeReview.git
 cd CodeAlpha_SecureCodeReview
 
-
-2. Create a virtual environment
-
-powershell
-py -m venv .venv
-
-
-3. Activate the environment
-
-powershell
-.\.venv\Scripts\Activate.ps1
-
-
-If PowerShell blocks activation because of the execution policy, you can use Command Prompt instead:
-
-bat
-.venv\Scripts\activate.bat
-
-
-Alternatively, invoke the environment's Python executable directly without activating it.
-
-4. Upgrade pip and install dependencies
-
-powershell
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
-
-5. Configure the local API key and database
-
-powershell
-$env:LAB_API_KEY = "local-demo-key-change-me"
-$env:LAB_DB_PATH = "$env:TEMP\codealpha_review.sqlite3"
-
-
-Use a unique secret instead of the example key for any environment beyond local demonstration.
-
-6. Start the application
-
-powershell
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-
-
-Open the following address in your browser:
-
-Application API: http://127.0.0.1:8000
-Interactive API documentation: http://127.0.0.1:8000/docs
-Health check: http://127.0.0.1:8000/health
-
-Keep the server running while testing the API.
-
-🐧 Linux Installation
-
-These commands use Bash on Linux distributions such as Ubuntu, Debian, and Kali Linux.
-
-1. Clone the repository
-
-bash
-git clone https://github.com/charansaiteja-cloud/CodeAlpha_SecureCodeReview.git
-cd CodeAlpha_SecureCodeReview
-
-
-2. Install Python and virtual-environment support if necessary
-
-For Debian-based distributions:
-
-bash
-sudo apt update
-sudo apt install python3 python3-venv python3-pip git
-
-
-3. Create and activate the environment
-
-bash
 python3 -m venv .venv
 source .venv/bin/activate
 
-
-4. Install project dependencies
-
-bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 
+export LAB_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+export LAB_DB_PATH="$PWD/data/review.sqlite3"
 
-5. Configure the application
-
-bash
-export LAB_API_KEY='local-demo-key-change-me'
-export LAB_DB_PATH='/tmp/codealpha_review.sqlite3'
-
-
-Use an appropriately protected database path and a unique secret for your own environment.
-
-6. Start the application
-
-bash
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
+### Windows PowerShell
 
-Open http://127.0.0.1:8000/docs to explore and test the API.
+```powershell
+git clone https://github.com/charansaiteja-cloud/CodeAlpha_SecureCodeReview.git
+cd CodeAlpha_SecureCodeReview
 
-Security note: The example API key is for local testing only. Do not use it in production or commit real credentials to Git.
-🚀 How to Use the Application
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-Once the server is running, you can interact with the API through Swagger UI at /docs, an HTTP client, or curl.
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
 
-1. Check application health
+$env:LAB_API_KEY = python -c "import secrets; print(secrets.token_urlsafe(48))"
+$env:LAB_DB_PATH = "$PWD\data\review.sqlite3"
 
-The health endpoint does not require an API key.
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-bash
-curl http://127.0.0.1:8000/health
+If PowerShell blocks activation, run `.venv\Scripts\python.exe` directly or use `cmd.exe` with `.venv\Scripts\activate.bat`.
 
+The default database location is `data/review.sqlite3`. The parent directory is created automatically.
 
-Expected response:
+### Configuration
 
-json
-{
-  "status": "ok"
-}
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `LAB_API_KEY` | unset | Required for protected routes. If unset, every protected route returns 401. Use a long random value. |
+| `LAB_DB_PATH` | `data/review.sqlite3` | SQLite database path. |
+| `LAB_SCAN_ROOT` | project root | Root directory that `/api/v1/scan` may inspect. Resolved at startup. |
+| `LAB_ENABLE_DOCS` | `false` | Enables `/docs`, `/redoc`, and `/openapi.json` when set to `1`, `true`, `yes`, or `on`. |
+| `LAB_MAX_SCAN_FILES` | `2000` | Maximum number of Python files in one scan. Invalid or non-positive values fall back to the default. |
 
-2. Read an item
+Copy `.env.example` to `.env` for a local template. Do not commit `.env` or real credentials. Docker Compose reads `LAB_API_KEY` from the environment and refuses to start without it.
 
-Protected endpoints require the X-API-Key header.
+## API Reference
 
-bash
-curl -H "X-API-Key: local-demo-key-change-me" \
-  http://127.0.0.1:8000/items/1
+| Method | Endpoint | Authentication | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/health` | No | Liveness check. Returns `{"status": "healthy"}`. |
+| `GET` | `/api/v1/demo` | Yes | Lists user tables in the database. |
+| `GET` | `/items` | Yes | Lists or searches items. Query parameter `q` is optional, max 64 characters. |
+| `POST` | `/items` | Yes | Creates an item. Body: `{"name": "..."}`. |
+| `GET` | `/items/{item_id}` | Yes | Returns one item; rejects non-positive IDs and returns 404 when absent. |
+| `POST` | `/api/v1/scan` | Yes | Runs Bandit and Semgrep against a directory under `LAB_SCAN_ROOT`. |
+| `GET` | `/docs`, `/redoc` | No | Available only when `LAB_ENABLE_DOCS=true`. |
 
+Protected routes expect the header `X-API-Key: <value>`. Missing, wrong, oversized, or unconfigured keys produce 401. Item names must be 1–64 characters, contain at least one non-whitespace character, and contain no control characters. Search terms are limited to 64 characters.
 
-The database initializes a demonstration item with ID 1.
+### Examples
 
-3. Create an item
-bash
-curl -X POST http://127.0.0.1:8000/items \
+```bash
+BASE=http://127.0.0.1:8000
+KEY="$LAB_API_KEY"
+
+curl "$BASE/health"
+
+curl -H "X-API-Key: $KEY" "$BASE/api/v1/demo"
+
+curl -X POST "$BASE/items" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: local-demo-key-change-me" \
+  -H "X-API-Key: $KEY" \
   -d '{"name":"Secure Coding Demo"}'
 
-
-A successful request returns HTTP 201 with the created item's ID and name.
-
-Valid names must contain between 1 and 80 characters and use the permitted letters, numbers, underscores, spaces, periods, or hyphens.
-
-4. Search for items
-bash
-curl -G http://127.0.0.1:8000/search \
-  -H "X-API-Key: local-demo-key-change-me" \
+curl -G "$BASE/items" \
+  -H "X-API-Key: $KEY" \
   --data-urlencode "q=Secure"
 
+curl -H "X-API-Key: $KEY" "$BASE/items/1"
+```
 
-The search endpoint accepts a query between 1 and 80 characters and returns matching items, limited to 20 results.
+There is no seeded demo item; the database starts empty. A `%` or `_` in `q` is matched literally rather than as a SQL wildcard.
 
-API Endpoint Reference
-Method	Endpoint	Authentication	Purpose
-GET	/health	Not required	Check application health.
-GET	/items/{item_id}	Required	Retrieve an item by ID.
-POST	/items	Required	Create a validated item.
-GET	/search?q=...	Required	Search items by name.
-GET	/docs	Not required by default	Explore the interactive API documentation.
-Authentication and Error Handling
-Missing or incorrect API keys produce HTTP 401 Unauthorized on protected endpoints.
-Invalid item IDs or request parameters produce validation errors.
-Requests for nonexistent items return HTTP 404 Not Found.
-The application fails closed when its API key is not configured: protected endpoints remain inaccessible.
-🔍 Security Testing and Static Analysis
+### Scan API
 
-Run these checks from the repository root.
+```bash
+curl -X POST "$BASE/api/v1/scan" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $KEY" \
+  -d '{"target_path":"app"}'
+```
 
-1. Run the automated tests
-bash
+`target_path` is relative to `LAB_SCAN_ROOT` (default `.`). It is resolved and rejected if it escapes the root, resolves through a symlink outside the root, or contains an excluded directory such as `.git`, `.venv`, `data`, `reports`, `build`, or `dist`. The scan collects regular Python files only, skips dot-directories and symlinked directories, caps the file count, and never accepts an absolute path from the client.
+
+The response reports:
+
+- `status`: `success` when both scanners complete, `partial` when one completes, `error` when both fail.
+- `summary.scanner_statuses`: per-scanner state.
+- `summary.scanner_errors`: stable error codes, not raw scanner output.
+- `summary.status`: `completed`, `completed_with_warnings`, or `failed`.
+- `findings` and `severity_breakdown`.
+
+HTTP behavior:
+
+- `400` — invalid or excluded target.
+- `401` — missing or invalid API key.
+- `422` — invalid request body.
+- `429` — another scan is already running in this process.
+- `503` — both scanners are unavailable.
+- `500` — unexpected orchestration failure.
+
+The semaphore is an in-process concurrency guard, not a distributed rate limiter. Run one process per container and keep the endpoint on a trusted network.
+
+## Security Testing and CI
+
+Run the local gate from the repository root:
+
+```bash
+bash scripts/verify.sh
+```
+
+The script writes output to `reports/evidence/` and fails if a corrected-code check fails or an expected vulnerable-fixture detection disappears. It does not treat fixture findings as application failures.
+
+### Tests
+
+```bash
 python -m pytest -v
+```
 
+The suite covers health and security headers, authentication, fail-closed configuration, item validation, SQL metacharacters, literal `LIKE` wildcards, database path creation, scan-target containment, excluded directories, the busy-scan response, all-scanners-failed handling, custom-rule validity, vulnerable-fixture detection, the safe benchmark, and JSON/SARIF report generation.
 
-The tests cover health and security headers, API-key authentication, configuration failures, item retrieval, input validation, creation, searching, and SQL metacharacter handling.
+### Bandit
 
-2. Run Bandit
-bash
-bandit -r app -ll
+```bash
+python -m bandit -r app -ll
+```
 
+`-ll` blocks medium and higher severity findings in `app/`. The intentionally vulnerable fixtures are outside this target and are checked separately.
 
-Bandit performs static analysis on Python code and reports potential security issues according to its enabled rules and severity threshold.
+### Semgrep
 
-To include the educational vulnerable examples in the scan:
+Local maintained rules, blocking:
 
-bash
-bandit -r app vulnerable_samples -f txt
+```bash
+semgrep scan \
+  --config .semgrep/rules.yml \
+  --metrics=off \
+  --error \
+  --strict \
+  --disable-version-check \
+  --no-rewrite-rule-ids \
+  app/
+```
 
+Broader Python registry rules, also blocking:
 
-Findings in intentionally insecure samples should be reviewed separately from findings in the corrected application.
+```bash
+semgrep scan \
+  --config p/python \
+  --metrics=off \
+  --error \
+  --strict \
+  --disable-version-check \
+  app/
+```
 
-3. Run custom Semgrep rules
+`--error` is required: without it, Semgrep exits 0 even when it reports findings. `--config auto` is intentionally not used. Auto configuration requires metrics, and this project keeps metrics disabled.
 
-For isolation from the main application's dependencies, use a dedicated virtual environment.
+To inspect the deliberately vulnerable fixtures, scan them separately and expect a nonzero exit:
 
-Linux:
+```bash
+semgrep scan \
+  --config .semgrep/rules.yml \
+  --metrics=off \
+  --error \
+  --strict \
+  --disable-version-check \
+  vulnerable_samples
+```
 
-bash
-python3 -m venv .semgrep-venv
-.semgrep-venv/bin/python -m pip install semgrep
+### Dependency checks
 
-.semgrep-venv/bin/semgrep scan \
-  --config .semgrep/rules.yml app vulnerable_samples
-
-
-Windows PowerShell:
-
-powershell
-py -m venv .semgrep-venv
-.\.semgrep-venv\Scripts\python.exe -m pip install semgrep
-
-.\.semgrep-venv\Scripts\semgrep.exe scan `
-  --config .semgrep/rules.yml app vulnerable_samples
-
-4. Run the broader Semgrep OSS ruleset
-
-Linux:
-
-bash
-.semgrep-venv/bin/semgrep scan --config auto app vulnerable_samples
-
-
-Windows PowerShell:
-
-powershell
-.\.semgrep-venv\Scripts\semgrep.exe scan --config auto app vulnerable_samples
-
-
-The auto configuration uses Semgrep's available registry rules. Network access may be required to retrieve rules. Additional Semgrep products and rules may require account access.
-
-5. Check dependency consistency
-
-Run this command inside the main .venv:
-
-bash
+```bash
 python -m pip check
+python -m pip_audit --strict -r requirements-dev.txt
+```
 
+`requirements-dev.txt` includes the runtime requirements plus pytest, HTTPX, and pip-audit.
 
-It verifies that the installed packages satisfy their declared dependency requirements.
+### Finding and failure policy
 
-Important: Keep Semgrep in .semgrep-venv rather than installing it into the main application environment if its OpenTelemetry dependencies conflict with FastAPI.
+The blocking scope, severity thresholds, suppression rules, and triage process are defined in [`docs/security-policy.md`](docs/security-policy.md). In short:
 
-📊 Verified Project Results
+- Findings in `app/` block the gate; test fixtures are not production scope.
+- Scanner crashes, invalid JSON, missing rules, timeouts, and unexpected exit codes are failures, not clean results.
+- Suppressions must be narrow and justified; blanket exclusions, disabled scanners, and `continue-on-error` are not used.
+- A clean scan is evidence for the scanned revision and ruleset, not proof that the application is vulnerability-free.
 
-During the documented local verification run, the project produced these results:
+### CI workflow
 
-Verification	Result
-Automated tests	13 passed
-Bandit scan	No issues identified
-Custom Semgrep rules	0 findings
-Semgrep OSS scan	0 findings across 2 tracked files
-Dependency consistency	No broken requirements
-Git repository	Clean working tree after commit
+`.github/workflows/ci.yml` runs on pushes to `main`, pull requests targeting `main`, and manual dispatch. It uses read-only repository permissions, cancels superseded runs, pins third-party actions to commit SHAs, and contains two jobs:
 
-These results describe a specific verification run, not a guarantee that future versions or every file are vulnerability-free.
+1. **Tests** — Python 3.11 and 3.12, `pip check`, and pytest.
+2. **Security and supply-chain checks** — Bandit, local Semgrep rule validation and scan, `p/python` Semgrep scan, and `pip-audit --strict`.
 
-🛡️ Security Practices Demonstrated
-Parameterized SQL queries
+There is one workflow with this name; the former duplicate `security.yml` workflow was removed.
 
-Database operations use parameter binding rather than interpolating user-controlled input into SQL statements.
+## Local Verification Results
 
-python
-db.execute(
-    "SELECT id, name FROM items WHERE id = ?",
-    (item_id,)
-)
+Recorded on 2026-10-27 with Python 3.14.8, Bandit 1.9.4, Semgrep 1.79.0, and pip-audit in the local virtual environment:
 
+| Check | Result |
+| --- | --- |
+| Pytest | `64 passed` |
+| Python compilation | `app`, `tests`, `benchmarks`, `vulnerable_samples` compiled successfully |
+| `pip check` | No broken requirements |
+| Bandit `app -ll` | Exit 0; no medium/high findings (2 low-severity findings suppressed by the threshold) |
+| Local Semgrep rules on `app/` | 8 rules, 0 findings |
+| `p/python` Semgrep rules on `app/` | 151 rules, 0 findings |
+| Local Semgrep rules on `vulnerable_samples/` | All 8 fixture classes detected; expected nonzero exit |
+| Bandit fixture scan | Expected findings detected; expected nonzero exit |
+| `pip-audit --strict -r requirements-dev.txt` | No known vulnerabilities |
 
-This separates SQL syntax from supplied values and helps prevent SQL injection.
+These are local results. A clean result does not guarantee that every code path, dependency, or deployment configuration is safe.
 
-API-key verification
+## Docker
 
-The application compares the configured API key with the supplied X-API-Key using hmac.compare_digest. Protected endpoints reject missing, incorrect, or unconfigured credentials.
+The image installs runtime dependencies only, copies `app/` and `.semgrep/`, and runs as a non-root user. Compose additionally uses a read-only root filesystem, a writable data volume, a `/tmp` tmpfs, `no-new-privileges`, and dropped capabilities.
 
-Input validation
+```bash
+export LAB_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+docker compose up --build
+```
 
-Pydantic validates item names and request parameters against defined length and character constraints.
+Then test from the host:
 
-Defensive HTTP headers
+```bash
+curl http://127.0.0.1:8000/health
+```
 
-The application adds headers including:
+Compose publishes the port only on `127.0.0.1`. `LAB_ENABLE_DOCS` defaults to `false`; enable it only for local documentation if needed. The scan endpoint is privileged and expensive, so keep it off untrusted networks.
 
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Cache-Control: no-store
-Referrer-Policy: no-referrer
-Content-Security-Policy: default-src 'none'
+## Security Practices Demonstrated
 
-These controls help mitigate selected classes of browser-side and response-handling risks. They do not replace a complete production security configuration.
+- **Parameter binding** separates SQL syntax from data:
 
-⚠️ Troubleshooting
-python or python3 is not found
+  ```python
+  db.execute("SELECT id, name FROM items WHERE id = ?", (item_id,))
+  ```
 
-Install Python and ensure it is available on your system's PATH. On Windows, the Python launcher py may also be available.
+- **Literal search semantics** escape `%`, `_`, and the escape character before constructing a `LIKE` pattern.
+- **API-key verification** uses constant-time comparison and fails closed when no key is configured.
+- **Input constraints** reject blank names, oversized values, and control characters.
+- **Defensive headers** include `Content-Security-Policy: default-src 'none'; ...`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cache-Control: no-store`, HSTS, `Referrer-Policy: no-referrer`, `Permissions-Policy`, COOP/CORP, and `X-Permitted-Cross-Domain-Policies: none`.
+- **Docs isolation** gives documentation paths a relaxed CSP only when documentation is enabled; API responses keep the strict policy.
+- **Scanner containment** rejects traversal, symlink escape, excluded directories, and oversized targets.
+- **Honest scanner status** does not report an empty finding list when both tools failed.
 
-Virtual-environment activation fails
+## Threat Model and Limitations
 
-Use the correct activation command for your shell, or invoke .venv's Python executable directly.
+In scope: local application behavior, the scanner subprocess boundary, SQLite access, API-key handling, HTTP response headers, and the CI configuration.
 
-semgrep: command not found
+Out of scope or not implemented: production identity management, per-user authorization, TLS termination, distributed rate limiting, durable audit logging, secrets management, OS-level sandboxing of scanner subprocesses, multi-tenant isolation, and incident response.
 
-Semgrep is installed in the separate environment. Run it through .semgrep-venv/bin/semgrep on Linux or .semgrep-venv\Scripts\semgrep.exe on Windows.
+Additional limitations:
 
-pip check reports dependency conflicts
+- Bandit and Semgrep are pattern-based tools; they can miss vulnerabilities and produce false positives.
+- The scanner endpoint executes installed tools against files readable by the application user. The scan root, file cap, exclusions, timeouts, and API key reduce exposure but do not form a sandbox.
+- A single semaphore slot bounds one process only.
+- The API key is a shared secret, not a user identity or authorization model.
+- The container hardening is a baseline, not a complete production deployment profile.
+- Reports and evidence describe a specific revision and tool set.
 
-Activate the main .venv, reinstall the project's declared dependencies, and check again. Avoid installing Semgrep into that same environment when it causes incompatible dependency requirements.
+## Troubleshooting
 
-Protected endpoints return HTTP 401
+- **`semgrep: command not found`** — install `requirements-dev.txt` in the active environment, or use a dedicated scanner environment and call its `semgrep` executable.
+- **`semgrep` exits 0 despite findings** — add `--error`; this project's commands already do.
+- **`Cannot create auto config when metrics are off`** — do not combine `--config auto` with `SEMGREP_SEND_METRICS=off`; use an explicit rule file or `p/python`.
+- **Protected routes return 401** — set `LAB_API_KEY` in the same environment that starts the server and send the exact value.
+- **Scan returns 400** — use a relative directory under `LAB_SCAN_ROOT` that is not an excluded directory.
+- **Scan returns 429** — wait for the current scan to finish; there is one in-process slot.
+- **Scan returns 503** — check that Bandit and Semgrep are installed and working in the application environment.
+- **Database cannot be opened** — ensure the database parent directory is writable by the process/container user.
 
-Confirm that LAB_API_KEY is configured in the same terminal session that starts the server. Send the exact matching key in the X-API-Key header.
+## Future Improvements
 
-The database cannot be opened
+- Add authenticated report export endpoints for the existing JSON/SARIF generators.
+- Add structured audit logging and per-client rate limiting at a trusted reverse proxy.
+- Add more languages and framework-specific Semgrep rules with fixture coverage.
+- Add SBOM generation and signed container images.
+- Improve remediation guidance for each custom rule.
+- Run the consolidated workflow remotely and record the result before claiming CI success.
 
-Ensure the configured database path is valid and its parent directory exists and is writable by the current user.
+## Contributing
 
-🔮 Future Improvements
-
-Potential extensions include:
-
-Automated CI security checks using GitHub Actions.
-Structured security reports in JSON or SARIF format.
-Expanded regression tests and security test cases.
-Additional custom Semgrep rules.
-Improved logging and operational monitoring.
-More detailed remediation documentation and risk prioritization.
-🤝 Contributing
-
-Contributions, suggestions, and bug reports are welcome.
-
-Fork the repository.
-Create a feature branch.
-Make changes and add appropriate tests.
-Run the test suite and applicable security scans.
-Submit a pull request describing the changes and verification performed.
+1. Fork the repository and create a feature branch.
+2. Add or update tests for behavior changes.
+3. Run `bash scripts/verify.sh`.
+4. Open a pull request describing the change and the exact verification performed.
 
 Only use the intentionally vulnerable examples in authorized, controlled educational environments.
 
-⚖️ License
+## License
 
-This project is distributed under the MIT License. See LICENSE for the full license text.
+MIT. See [LICENSE](LICENSE).
 
-👨‍💻 Author
+## Author
 
 Bejjam Charan Sai Teja
-
 Cybersecurity enthusiast focused on secure coding, application security, vulnerability analysis, and security testing.
 
-GitHub: @charansaiteja-cloud
-Repository: CodeAlpha_SecureCodeReview
-
-Built as part of the CodeAlpha Cybersecurity Internship to demonstrate secure development practices and practical application security testing.
+GitHub: [@charansaiteja-cloud](https://github.com/charansaiteja-cloud)
+Repository: [CodeAlpha_SecureCodeReview](https://github.com/charansaiteja-cloud/CodeAlpha_SecureCodeReview)

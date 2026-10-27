@@ -1,33 +1,35 @@
-# Use official lightweight Python image
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim-bookworm
 
-# Create non-root system user for least-privilege execution
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME=/tmp \
+    LAB_DB_PATH=/app/data/review.sqlite3 \
+    LAB_SCAN_ROOT=/app
 
-# Set working directory
+RUN groupadd --system appgroup \
+    && useradd --system --gid appgroup --home-dir /app --shell /usr/sbin/nologin appuser
+
 WORKDIR /app
 
-# Install system dependencies if required
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements.txt
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copy only application runtime assets. Tests, fixtures, local environments,
+# reports, and secrets are excluded by .dockerignore.
+COPY --chown=appuser:appgroup app ./app
+COPY --chown=appuser:appgroup .semgrep ./.semgrep
 
-# Copy application code
-COPY . /app
+RUN mkdir -p /app/data && chown appuser:appgroup /app/data
 
-# Set ownership to non-root user
-RUN chown -R appuser:appgroup /app
-
-# Switch to non-root user
 USER appuser
 
-# Expose FastAPI port
 EXPOSE 8000
 
-# Run Uvicorn production server
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

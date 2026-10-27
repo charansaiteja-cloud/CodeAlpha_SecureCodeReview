@@ -1,14 +1,26 @@
-version: '3.8'
-
 services:
   secure-review-api:
     build: .
+    init: true
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - LAB_API_KEY=production-secure-key-change-me
-      - LAB_DB_PATH=/app/data/review.sqlite3
+      # Required at runtime. Generate a long random value; never commit it.
+      LAB_API_KEY: ${LAB_API_KEY:?LAB_API_KEY must be set in the environment}
+      LAB_DB_PATH: /app/data/review.sqlite3
+      LAB_SCAN_ROOT: /app
+      LAB_ENABLE_DOCS: ${LAB_ENABLE_DOCS:-false}
+      LAB_MAX_SCAN_FILES: ${LAB_MAX_SCAN_FILES:-2000}
     volumes:
-      - ./data:/app/data
-      - ./reports:/app/reports
+      - review-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
+
+volumes:
+  review-data:

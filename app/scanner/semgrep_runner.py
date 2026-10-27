@@ -1,64 +1,120 @@
-import json
-import subprocess
+"""Semgrep scanner adapter used by the scanner API."""
+from __future__ import annotations
+
 import hashlib
+import importlib.metadata
+import logging
 from pathlib import Path
-from typing import List
-from app.scanner.base import BaseScanner
+
 from app.models.findings import Finding, Severity
+from app.scanner.base import BaseScanner
+from app.scanner.common import (
+    ScannerError,
+    collect_python_files,
+    display_path,
+    run_json_command,
+    semgrep_command_prefix,
+    semgrep_rules_path,
+)
+
+logger = logging.getLogger(__name__)
+
+_SEVERITY_MAP = {
+    "CRITICAL": Severity.CRITICAL,
+    "ERROR": Severity.HIGH,
+    "WARNING": Severity.MEDIUM,
+    "INFO": Severity.LOW,
+}
+
+
+def _coerce_line(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    try:
+        line = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return line if line >= 0 else 0
+
+
+def _package_version(name: str) -> str:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
 
 class SemgrepRunner(BaseScanner):
     name = "Semgrep"
-    version = "1.50.0"
 
-    def scan(self, target_dir: Path) -> List[Finding]:
-        findings: List[Finding] = []
-        
-        # Check if local virtualenv semgrep exists or use system semgrep
-        semgrep_path = ".semgrep-venv/bin/semgrep"
-        cmd = [
-            semgrep_path if Path(semgrep_path).is_file() else "semgrep",
-            "scan",
-            "--config", "auto",
-            "--json",
-            "--quiet",
-            str(target_dir)
-        ]
+    def __init__(self) -> None:
+        self.version = _package_version("semgrep")
 
+    def scan(self, target_dir: Path) -> list[Finding]:
+        findings: list[Finding] = []
+        resolved_target = Path(target_dir).resolve()
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=45,
-                check=False
-            )
-            
-            if not result.stdout.strip():
+            files = collect_python_files(resolved_target)
+            if not files:
                 return findings
 
-            data = json.loads(result.stdout)
-            for item in data.get("results", []):
-                file_path = item.get("path", "")
-                start_line = item.get("start", {}).get("line", 0)
-                end_line = item.get("end", {}).get("line", start_line)
-                
-                extra = item.get("extra", {})
+            result = run_json_command(
+                [
+                    *semgrep_command_prefix(),
+                    "scan",
+                    "--config",
+                    str(semgrep_rules_path()),
+                    "--json",
+                    "--metrics=off",
+                    "--error",
+                    "--strict",
+                    "--disable-version-check",
+                    "--no-rewrite-rule-ids",
+                    *[str(path) for path in files],
+                ],
+                timeout=90,
+            )
+            if result.returncode not in (0, 1):
+                raise ScannerError("semgrep_failed", result.stderr)
+            if result.payload.get("errors"):
+                raise ScannerError("semgrep_errors", "Semgrep reported analysis errors")
+
+            raw_results = result.payload.get("results")
+            if not isinstance(raw_results, list):
+                raise ScannerError("semgrep_malformed", "Semgrep results were not a list")
+            for item in raw_results:
+                if not isinstance(item, dict):
+                    continue
+                extra = item.get("extra") or {}
+                if not isinstance(extra, dict):
+                    extra = {}
+                metadata = extra.get("metadata") or {}
+                if not isinstance(metadata, dict):
+                    metadata = {}
+
                 rule_id = item.get("check_id", "semgrep.rule")
-                title = extra.get("message", "Security Vulnerability Detected").split("\n")[0]
-                description = extra.get("message", "")
-                
-                raw_sev = extra.get("severity", "WARNING").upper()
-                severity_map = {
-                    "ERROR": Severity.HIGH,
-                    "WARNING": Severity.MEDIUM,
-                    "INFO": Severity.LOW
-                }
-                severity = severity_map.get(raw_sev, Severity.MEDIUM)
-                
-                # Metadata CWE/OWASP mapping if present
-                metadata = extra.get("metadata", {})
-                cwe_list = metadata.get("cwe", [])
-                cwe_id = cwe_list[0] if isinstance(cwe_list, list) and cwe_list else cwe_list
+                file_path = display_path(
+                    item.get("path", ""), fallback_base=resolved_target
+                )
+                start = item.get("start") or {}
+                end = item.get("end") or {}
+                if not isinstance(start, dict):
+                    start = {}
+                if not isinstance(end, dict):
+                    end = {}
+                start_line = _coerce_line(start.get("line"))
+                end_line = max(start_line, _coerce_line(end.get("line")))
+
+                message = str(extra.get("message", "Security vulnerability detected"))
+                raw_severity = str(extra.get("severity", "WARNING")).upper()
+                severity = _SEVERITY_MAP.get(raw_severity, Severity.MEDIUM)
+
+                cwe = metadata.get("cwe")
+                if isinstance(cwe, list):
+                    cwe = cwe[0] if cwe else None
+                owasp = metadata.get("owasp")
+                if isinstance(owasp, list):
+                    owasp = owasp[0] if owasp else None
 
                 unique_str = f"{rule_id}:{file_path}:{start_line}"
                 finding_id = hashlib.sha256(unique_str.encode("utf-8")).hexdigest()[:16]
@@ -67,21 +123,30 @@ class SemgrepRunner(BaseScanner):
                     Finding(
                         finding_id=finding_id,
                         rule_id=rule_id,
-                        title=title,
-                        description=description,
+                        title=message.splitlines()[0][:200],
+                        description=message,
                         severity=severity,
+                        confidence=str(metadata.get("confidence", "MEDIUM")).upper(),
                         file_path=file_path,
                         start_line=start_line,
                         end_line=end_line,
-                        code_snippet=extra.get("lines", "").strip(),
-                        remediation=metadata.get("fix", "Review code logic and apply secure coding practices."),
-                        cwe_id=str(cwe_id) if cwe_id else None,
-                        owasp_mapping=metadata.get("owasp"),
+                        code_snippet=str(extra.get("lines", "")).strip(),
+                        remediation=str(
+                            metadata.get(
+                                "fix",
+                                "Review the code path and apply secure coding practices.",
+                            )
+                        ),
+                        cwe_id=str(cwe) if cwe else None,
+                        owasp_mapping=str(owasp) if owasp else None,
                         scanner_name=self.name,
-                        scanner_version=self.version
+                        scanner_version=self.version,
                     )
                 )
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-            pass
+        except ScannerError:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected Semgrep runner failure")
+            raise ScannerError("unexpected_error", type(exc).__name__) from exc
 
         return findings

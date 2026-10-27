@@ -1,11 +1,12 @@
 .venv/
+.semgrep-venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.env
-.env.*
-*.log
-.semgrep-venv/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Local configuration and secrets
 .env
@@ -14,5 +15,11 @@ __pycache__/
 
 # Local databases and generated scan reports
 *.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 *.db
+data/
 reports/
+*.sarif
+*.log
