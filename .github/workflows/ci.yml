@@ -35,8 +35,9 @@ jobs:
           bandit -r app/ -lll
 
       - name: Run Semgrep Security Scan
+        continue-on-error: true
         run: |
-          semgrep scan --config auto --exclude benchmarks/ || true
+          semgrep scan --config auto --exclude benchmarks/
 
       - name: Run Supply-Chain Dependency Audit
         run: |
