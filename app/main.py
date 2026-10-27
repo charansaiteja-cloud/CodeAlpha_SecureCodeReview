@@ -230,3 +230,14 @@ def trigger_security_scan(request: ScanRequest):
         )
 
     return result
+
+def validate_environment():
+    import sys
+    api_key = os.getenv("API_KEY", "")
+    placeholders = ["placeholder", "your-api-key", "sk-proj-placeholder", "changeme", "test_key"]
+    is_placeholder = any(p in api_key.lower() for p in placeholders)
+    if not api_key or len(api_key) < 20 or is_placeholder:
+        print("[FATAL ERROR] Invalid, missing, or placeholder API key detected.", file=sys.stderr)
+        sys.exit(1)
+
+validate_environment()
