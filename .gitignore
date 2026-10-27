@@ -23,3 +23,10 @@ data/
 reports/
 *.sarif
 *.log
+
+# Local video production outputs
+video-output/
+demo-video/openfilm/.film/cache/
+demo-video/openfilm/.film/history/
+demo-video/openfilm/.film/id
+demo-video/openfilm/.film/opened
