@@ -64,4 +64,4 @@ jobs:
         run: semgrep scan --config .semgrep/rules.yml app/
 
       - name: Run Semgrep OSS rules
-        run: semgrep scan --config auto app/
+        run: semgrep scan --config p/default --metrics=off app/
