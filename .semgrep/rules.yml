@@ -1,0 +1,11 @@
+rules:
+  - id: lab-shell-true
+    languages: [python]
+    severity: ERROR
+    message: Avoid shell=True with untrusted input.
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+  - id: lab-pickle-loads
+    languages: [python]
+    severity: ERROR
+    message: Avoid pickle for untrusted data.
+    pattern: pickle.loads(...)
