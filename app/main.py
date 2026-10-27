@@ -11,7 +11,7 @@ from app.scanner.orchestrator import ScanOrchestrator
 
 logger = logging.getLogger(__name__)
 
-# FastAPI app instance must be defined at module top-level for test imports
+# FastAPI app instance defined at module top-level
 app = FastAPI(title="CodeAlpha SecureCodeReview", version="2.0.0")
 
 DB_PATH = Path(
@@ -28,6 +28,7 @@ class Item(BaseModel):
 
 
 def get_db():
+    db = None
     try:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         db = sqlite3.connect(DB_PATH)
@@ -45,7 +46,8 @@ def get_db():
         logger.exception("Database directory or file access failed")
         raise
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def require_key(x_api_key: str | None = Header(default=None)):
@@ -82,14 +84,12 @@ def search_items(
     return {"items": items}
 
 
-@app.post("/items", dependencies=[Depends(require_key)])
-def create_item(name: str, db: sqlite3.Connection = Depends(get_db)):
-    if not name or len(name) > 64:
-        raise HTTPException(status_code=400, detail="Invalid name")
+@app.post("/items", status_code=201, dependencies=[Depends(require_key)])
+def create_item(item: Item, db: sqlite3.Connection = Depends(get_db)):
     cursor = db.cursor()
-    cursor.execute("INSERT INTO items (name) VALUES (?)", (name,))
+    cursor.execute("INSERT INTO items (name) VALUES (?)", (item.name,))
     db.commit()
-    return {"id": cursor.lastrowid, "name": name}
+    return {"id": cursor.lastrowid, "name": item.name}
 
 
 @app.get("/items/{item_id}", dependencies=[Depends(require_key)])
@@ -112,9 +112,13 @@ class ScanRequest(BaseModel):
 def trigger_security_scan(request: ScanRequest):
     workspace_dir = Path(".").resolve()
     try:
+        # Resolve target path securely and verify containment using is_relative_to
         target_dir = (workspace_dir / request.target_path).resolve()
-        if not str(target_dir).startswith(str(workspace_dir)):
+        
+        # Hardened check against path traversal and sibling directory prefix bypasses
+        if not target_dir.is_relative_to(workspace_dir):
             raise HTTPException(status_code=400, detail="Path traversal detected.")
+            
         if not target_dir.is_dir():
             raise HTTPException(status_code=400, detail="Target directory does not exist.")
     except Exception as e:
