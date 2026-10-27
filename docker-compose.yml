@@ -3,9 +3,8 @@ services:
     build: .
     init: true
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8000"
     environment:
-      # Required at runtime. Generate a long random value; never commit it.
       LAB_API_KEY: ${LAB_API_KEY:?LAB_API_KEY must be set in the environment}
       LAB_DB_PATH: /app/data/review.sqlite3
       LAB_SCAN_ROOT: /app
