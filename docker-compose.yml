@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  secure-review-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - LAB_API_KEY=production-secure-key-change-me
+      - LAB_DB_PATH=/app/data/review.sqlite3
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    restart: unless-stopped
