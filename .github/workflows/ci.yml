@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      API_KEY: "sk-proj-test-key-12345678901234567890"
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
