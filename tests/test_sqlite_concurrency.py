@@ -1,6 +1,6 @@
 import concurrent.futures
 import sqlite3
-import pytest
+
 
 def worker_query(db_path):
     # Test connection with check_same_thread=False under concurrent load
@@ -11,9 +11,10 @@ def worker_query(db_path):
     conn.close()
     return res[0]
 
+
 def test_concurrent_sqlite_requests(tmp_path):
     db_path = str(tmp_path / "test.db")
-    
+
     # Initialize test DB
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE IF NOT EXISTS test (id INT)")

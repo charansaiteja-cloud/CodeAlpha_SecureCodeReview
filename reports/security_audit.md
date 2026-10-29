@@ -104,6 +104,10 @@ Local run on 2026-10-27:
 | Registry Semgrep | `semgrep scan --config p/python --metrics=off --error --strict --disable-version-check app` | 151 rules, 0 findings, exit 0 |
 | Fixture Semgrep | Same local command against `vulnerable_samples` | All eight classes detected; expected exit 1 |
 | Fixture Bandit | `python -m bandit -r vulnerable_samples` | Expected findings; expected exit 1 |
+
+Current revision: **74 passed** with **82.8% branch coverage** after adding
+scanner-adapter regression tests. The 64-test figures above are retained as the
+audit-time evidence, not presented as the current total.
 | Dependency audit | `python -m pip_audit --strict -r requirements-dev.txt` | No known vulnerabilities |
 | Local gate | `bash scripts/verify.sh` | All verification checks passed |
 

@@ -2,40 +2,56 @@ name: CI Security & Tests
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    env:
-      API_KEY: "sk-proj-test-key-12345678901234567890"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
           python -m pip check
 
-      - name: Run Test Suite
+      - name: Lint and format
         run: |
-          python3 -m pytest tests/
+          ruff check app tests
+          ruff format --check app tests
+
+      - name: Test with coverage
+        run: pytest
+
+      - name: Bandit
+        run: bandit -q -r app
 
       - name: Generate SBOM
         run: |
           pip install cyclonedx-bom
           cyclonedx-py requirements requirements.txt -o sbom.json
 
-      - name: Upload SBOM Artifact
+      - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom
